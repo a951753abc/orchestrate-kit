@@ -1,0 +1,161 @@
+# risk-grade policy：放在專案 <repo>/.claude/risk-policy.yaml
+# 本檔同時是 scripts/risk_signals.py 在專案無 policy 時的預設 policy
+# 路徑 pattern 為 glob，相對 repo 根目錄；** 跨目錄、* 不跨目錄
+version: 1
+project: default
+
+# 硬性 gate：命中任一即中高風險，變更性質不得降級
+gates:
+  - name: auth
+    reason: 安全／授權：登入、session、token、權限檢查
+    paths:
+      - "**/auth/**"
+      - "**/authz/**"
+      - "**/authentication/**"
+      - "**/authorization/**"
+      - "**/permission*/**"
+      - "**/middleware/*auth*"
+    exclude:
+      - "**/*.md"
+  - name: secrets
+    reason: 憑證、金鑰、加解密
+    paths:
+      - "**/*secret*"
+      - "**/*credential*"
+      - "**/crypto/**"
+      - "**/*encrypt*"
+      - "**/*.pem"
+      - "**/*.key"
+      - ".env*"
+      - "**/.env*"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+      - "**/i18n/**"
+      - "**/locales/**"
+  - name: payment
+    reason: 改變金額計算、扣款、退款或對帳路徑的邏輯
+    paths:
+      - "**/payment*/**"
+      - "**/billing/**"
+      - "**/refund*/**"
+      - "**/pricing/**"
+      - "**/checkout/**"
+      - "**/settlement/**"
+      - "**/invoice*/**"
+      - "**/*payment*"
+      - "**/*billing*"
+      - "**/*refund*"
+      - "**/*pricing*"
+      - "**/*checkout*"
+      - "**/*settlement*"
+      - "**/*invoice*"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+      - "**/locales/**"
+      - "**/i18n/**"
+      - "**/*.log"
+  - name: migration
+    reason: schema migration 與資料搬移
+    paths:
+      - "**/migrations/**"
+      - "**/migrate/**"
+      - "**/*.sql"
+      - "**/schema.*"
+      - "**/schema/**"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+  - name: infra_ci
+    reason: 部署設定、CI workflow、IaC
+    paths:
+      - ".github/workflows/**"
+      - ".gitlab-ci.yml"
+      - "**/Dockerfile*"
+      - "**/docker-compose*"
+      - "**/terraform/**"
+      - "**/*.tf"
+      - "**/k8s/**"
+      - "**/helm/**"
+      - "**/deploy/**"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+  - name: audit_logging
+    reason: 稽核紀錄、監控、告警
+    paths:
+      - "**/audit/**"
+      - "**/monitoring/**"
+      - "**/alerting/**"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+  - name: public_contract
+    reason: 對外介面與跨模組契約
+    paths:
+      - "**/*.proto"
+      - "**/openapi*"
+      - "**/swagger*"
+      - "**/api/schema/**"
+      - "**/public/**/*.d.ts"
+    exclude:
+      - "**/*.md"
+      - "**/docs/**"
+  - name: approval_governance
+    reason: 改變誰能核准未來變更
+    paths:
+      - "CODEOWNERS"
+      - "**/CODEOWNERS"
+      - ".claude/risk-policy.yaml"
+      - "**/.claude/risk-policy.yaml"
+      - ".github/branch-protection*"
+
+# safe-change 白名單：未命中 gate 且全部變更落在下列類別 → 低風險
+safe_changes:
+  docs:
+    - "**/*.md"
+    - "**/*.rst"
+    - "**/*.txt"
+    - "**/docs/**"
+    - "**/LICENSE*"
+    - "**/CHANGELOG*"
+  tests:
+    - "**/test_*.py"
+    - "**/*_test.py"
+    - "**/*_test.go"
+    - "**/*.test.*"
+    - "**/*.spec.*"
+    - "**/tests/**"
+    - "**/test/**"
+    - "**/__tests__/**"
+    - "**/fixtures/**"
+  assets:
+    - "**/*.png"
+    - "**/*.jpg"
+    - "**/*.jpeg"
+    - "**/*.gif"
+    - "**/*.svg"
+    - "**/*.ico"
+    - "**/*.webp"
+  config_minor:
+    - ".editorconfig"
+    - ".prettierrc*"
+    - ".eslintrc*"
+    - "**/.gitignore"
+    - "**/*.code-workspace"
+
+# 忽略：建置產物、lock 檔等不參與分類的檔案
+ignore:
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/*.lock"
+  - "**/package-lock.json"
+  - "**/yarn.lock"
+  - "**/pnpm-lock.yaml"
+
+# 注意力上限：變更行數超過只產生分批建議，不影響等級
+attention_limit_lines: 400

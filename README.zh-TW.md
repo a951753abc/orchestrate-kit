@@ -1,0 +1,85 @@
+# orchestrate-kit
+
+[English](README.md) | 正體中文
+
+讓 Claude 以 tech lead 的方式做事的 Claude Code plugin：診斷任務、切窄工單、發派 Sonnet／Opus executor subagent、親自驗收、對變更做風險分級、中高風險交對抗式 reviewer、仲裁 findings、最後出 close 報告。
+
+## 內容
+
+| 元件 | 類型 | 角色 |
+| --- | --- | --- |
+| `orchestrate-v2` | skill（手動呼叫） | 七個 Phase：診斷 → 切工單 → 發派 → 驗收 → 分級 review → 仲裁 → close。判準、樣板與腳本只在對應步驟按需載入。 |
+| `risk-grade` | skill | 對一組程式碼變更做三層漏斗分級：硬性 gate → safe-change 白名單 → 裁量。每次分級記入 ledger。 |
+| `risk-calibrate` | skill | 以 ledger 的分級與實際結果對照做校準，產出 risk-policy 措辭修改提案；不直接改 policy。 |
+| `debug-by-evidence` | skill | 證據先於修法。Phase 1 遇到 bug／測試失敗／flaky／效能退化時使用。 |
+| `executable-spec` | skill | 三層可執行規格。任務需要 SPEC 而尚無時，流程會停下來要求先產出。 |
+| `sonnet-lite-executor`、`sonnet-executor`、`opus-executor` | agents | 工單執行者，依難度與風險訊號路由。只做工單上寫的事，不碰 git。 |
+| `opus-reviewer` | agent | 中高風險變更的對抗式 reviewer。只回傳原始 findings，仲裁由 orchestrator 做。 |
+
+## 需求
+
+- 支援 plugin 的 Claude Code，方案要能跑 Sonnet 與 Opus（agent 定義檔釘了模型）。
+- [`uv`](https://docs.astral.sh/uv/)：腳本都是 PEP 723 單檔腳本，以 `uv run` 執行。
+- Python 3.10 以上、`git` 在 PATH 上。
+- Windows：設一次 `PYTHONUTF8=1`（`setx PYTHONUTF8 1`），避免腳本輸出的中文被 CP950 主控台咬壞。
+
+## 安裝
+
+```
+/plugin marketplace add a951753abc/orchestrate-kit
+/plugin install orchestrate-kit@orchestrate-kit
+```
+
+安裝後開新的 Claude Code session。
+
+## 使用
+
+```
+/orchestrate-kit:orchestrate-v2 <任務描述>
+```
+
+流程：
+
+1. **診斷**：讀任務與 code，把假設分類；需要你裁決的產品決策會在切工單前先問。
+2. **切工單**：每張工單有目標、允許修改的檔案清單、可執行的驗收指令與禁止事項；每張工單先跑一次風險訊號估算，決定派哪個 executor。
+3. **發派**：驗收指令先在現況跑一次，確認修正前會失敗；每次發派前拍 baseline snapshot。
+4. **驗收**：baseline compare（越界檔即退回）加上 orchestrator 親自重跑每條驗收指令。executor 的回報不算證據。
+5. **Review**：由 `risk-grade` 決定；中高風險帶四面向 focus 派 `opus-reviewer`，低風險自驗。
+6. **仲裁**：每條 finding 對照 code 查證：真問題開新窄工單、假陽性記錄否決理由、PLAUSIBLE 交給你裁決。
+7. **Close**：出報告並回填 ledger outcome。沒有你的指示不會 commit。
+
+單獨使用：
+
+- `/orchestrate-kit:risk-grade <變更範圍與脈絡>`：不走完整流程，只做分級。
+- `/orchestrate-kit:risk-calibrate [專案目錄]`：某專案 ledger 累積約十筆已回填結果後使用。
+- `debug-by-evidence` 與 `executable-spec` 會依 description 自動觸發，也可直接以名稱呼叫。
+
+狀態放哪裡：
+
+- 專案的風險 policy：`.claude/risk-policy.yaml`（要求時依內附樣板建立；宣告敏感路徑與 safe-change 範圍）。
+- 全域 ledger：`~/.claude/risk-grade/ledger.jsonl`。
+- baseline manifest：`<系統 temp>/claude-orchestrate/<repo hash>/`。
+
+## 選配：用 Codex 做 reviewer 或 rescue
+
+未內附。預設 review 派 `opus-reviewer`；同一張工單 executor 失敗兩次後，rescue 改派另一系 executor（Sonnet ↔ Opus）。有 OpenAI Codex CLI 且想引進異質模型的話：
+
+1. 安裝 [ai-orchestra](https://github.com/jason201385-commits/ai-orchestra)。其 `dispatch.py` 提供唯讀的 `codex-review` provider 與完整權限的 `codex-full` provider。
+2. 新增 `~/.claude/agents/codex-reviewer.md`（tools：`Bash`）。契約：把 focus 文字寫進暫存檔，背景執行 `cd <repo> && cat <檔> | PYTHONUTF8=1 python <ai-orchestra>/scripts/dispatch.py codex-review --label <名稱> --timeout <秒>`，等完成通知後把 Codex 的最終訊息原樣當 findings 回傳，不修復、不過濾。review sandbox 是唯讀的，prompt 要叫 Codex 自己跑 `git diff`。
+3. 不用再設定別的：review 規則在 `codex-reviewer` 存在時優先派它，失敗一次即 fallback 到 `opus-reviewer`，不重試。rescue 也可同樣接到 `codex-full`。
+
+## 語言
+
+skill 本文、rules 與 templates 以正體中文撰寫。任何 session 語言下 Claude 都照著做；想要英文報告就在 `CLAUDE.md` 寫明。
+
+## 更新
+
+```
+/plugin update orchestrate-kit@orchestrate-kit
+```
+
+之後開新 session。
+
+## 授權
+
+MIT

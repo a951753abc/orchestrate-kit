@@ -1,0 +1,32 @@
+# risk-grade policy：放在專案 <repo>/.claude/risk-policy.yaml
+# 路徑 pattern 為 glob，相對 repo 根目錄；** 跨目錄、* 不跨目錄
+version: 1
+project: {{PROJECT_NAME}}
+
+# 硬性 gate：命中任一即中高風險，變更性質不得降級
+gates:
+  - name: {{GATE_NAME}}
+    reason: {{GATE_REASON}}
+    paths:
+      - "{{GATE_PATH_GLOB}}"
+    # 選填：gate 目錄內不觸發的檔案（log、註解、文件、locale）
+    exclude:
+      - "{{GATE_EXCLUDE_GLOB}}"
+
+# safe-change 白名單：未命中 gate 且全部變更落在下列類別 → 低風險
+safe_changes:
+  docs:
+    - "{{DOCS_GLOB}}"
+  tests:
+    - "{{TESTS_GLOB}}"
+  assets:
+    - "{{ASSETS_GLOB}}"
+  config_minor:
+    - "{{MINOR_CONFIG_GLOB}}"
+
+# 忽略：建置產物、lock 檔等不參與分類的檔案
+ignore:
+  - "{{IGNORE_GLOB}}"
+
+# 注意力上限：變更行數超過只產生分批建議，不影響等級
+attention_limit_lines: {{ATTENTION_LIMIT_LINES}}

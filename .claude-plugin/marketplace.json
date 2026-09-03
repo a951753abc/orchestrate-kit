@@ -1,0 +1,14 @@
+{
+  "name": "orchestrate-kit",
+  "owner": {
+    "name": "JP6"
+  },
+  "description": "Tech-lead orchestration for Claude Code: work orders, executor routing, self-verification, risk-graded review.",
+  "plugins": [
+    {
+      "name": "orchestrate-kit",
+      "source": "./plugins/orchestrate-kit",
+      "description": "Tech-lead orchestration flow (orchestrate-v2) with risk grading, evidence-first debugging, executable specs and executor/reviewer agents."
+    }
+  ]
+}
