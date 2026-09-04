@@ -32,6 +32,23 @@ A Claude Code plugin that makes Claude work like a tech lead: diagnose the task,
 
 Start a new Claude Code session after installing.
 
+## When to use it
+
+Invoke the flow when the task is a change that can be written as a work order with acceptance commands: a feature or fix across several files, a bug taken from symptom to verified fix, a batch edit, anything whose result is checked by running something. The value of the flow is the mechanical verification around the executor: baseline snapshot and compare, acceptance commands run by the orchestrator itself, risk-graded review, and a close report with evidence.
+
+Make the change yourself, without the flow, when writing the work order would cost more than the change and there is nothing to run afterwards: a typo, a sentence in a document, one constant, a small CSS tweak. The fixed cost of a run is a handful of script calls (baseline, risk signals, risk-grade, ledger) plus the templates the orchestrator reads; the conditional steps (failure handling, external review, adjudication) are skipped when nothing triggers them.
+
+Complexity and risk are handled by different parts of the flow, so a small change is not automatically a light one:
+
+| Complexity | Risk | What the flow does |
+| --- | --- | --- |
+| low | low | one work order, `sonnet-lite-executor` or `sonnet-executor`, orchestrator self-verifies |
+| low | high | one work order, `opus-executor` (a gate was hit), adversarial review, adjudication |
+| high | low | several work orders in sequence or in parallel, orchestrator self-verifies |
+| high | high | several work orders, `opus-executor`, adversarial review per batch |
+
+Complexity decides how many work orders are cut and which executor gets them. Risk is decided by `risk-grade` from gates (auth, secrets, payment, migration, infra/CI, public contracts, core business rules, concurrency, data safety), never from diff size: a one-line change to an authorization check is reviewed, a 300-line read-only UI change is not. If a task starts small and grows (a second subsystem, an unresolved product decision, acceptance that cannot be made executable), the flow goes back to diagnosis and re-cuts the work orders instead of continuing on the original one.
+
 ## Usage
 
 ```

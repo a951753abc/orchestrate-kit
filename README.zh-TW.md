@@ -32,6 +32,23 @@
 
 安裝後開新的 Claude Code session。
 
+## 何時用、何時不用
+
+任務是可以寫成工單、有驗收指令的修改時才呼叫：跨多檔的功能或修正、從症狀修到驗證通過的 bug、批次編輯、任何結果要靠執行某個指令來確認的事。流程的價值在 executor 周圍的機械驗證：baseline snapshot 與 compare、orchestrator 親自跑驗收指令、依風險分級的 review、附證據的 close 報告。
+
+寫工單比改動本身還貴、改完也沒有東西可跑的修改，直接自己改，不走流程：typo、文件裡的一句話、一個常數、小幅 CSS 調整。每跑一輪的固定成本是幾支 script（baseline、風險訊號、risk-grade、ledger）加上 orchestrator 要讀的樣板；條件式步驟（失敗處理、外部 review、仲裁）沒觸發就不會執行。
+
+複雜度與風險由流程的不同部分處理，所以改動小不代表流程輕：
+
+| 複雜度 | 風險 | 流程怎麼走 |
+| --- | --- | --- |
+| 低 | 低 | 一張工單，`sonnet-lite-executor` 或 `sonnet-executor`，orchestrator 自驗 |
+| 低 | 高 | 一張工單，`opus-executor`（命中 gate），對抗式 review，仲裁 |
+| 高 | 低 | 多張工單序列或並行，orchestrator 自驗 |
+| 高 | 高 | 多張工單，`opus-executor`，逐批對抗式 review |
+
+複雜度決定切幾張工單、派哪個 executor。風險由 `risk-grade` 依 gate 判定（auth、secrets、金流、migration、infra／CI、公開介面、核心商業規則、concurrency、資料安全），從不看 diff 大小：改 authorization 檢查一行會被 review，唯讀 UI 改三百行不會。任務起初很小、途中變大（動到第二個 subsystem、出現未決的產品決策、驗收無法寫成可執行指令）時，流程回到診斷重切工單，不在原工單上繼續。
+
 ## 使用
 
 ```
