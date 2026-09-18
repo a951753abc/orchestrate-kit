@@ -69,7 +69,7 @@ SPEC 核可後、實作開始前，依三層衍生：
 
 - **守恆**：操作前後總量不變（轉帳前後兩帳戶合計不變）
 - **Roundtrip**：編碼後解碼還原（serialize/deserialize、正逆運算）
-- **冪等**：做兩次等於做一次（sort(sort(x)) = sort(x)）
+- **idempotent**：做兩次等於做一次（sort(sort(x)) = sort(x)）
 - **不變式維持**：任意操作序列後 I-n 仍成立（stateful testing）
 - **失敗原子性**：被拒絕的操作不改變狀態
 - **與 reference 比對**：最佳化實作與明顯正確的 baseline 在隨機輸入上結果一致

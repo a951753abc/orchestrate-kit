@@ -14,7 +14,7 @@
   - `approval_governance`：改變誰能核准未來變更的設定（CODEOWNERS、branch protection、本 policy 檔）
 - 語意類 gate 無法用路徑比對，機械層落在 judgement 時由 Phase 2 依工單目標、任務形狀與 diff 內容判定（機械層已判 safe 的檔案是文件、測試、格式與資產，不再檢查語意類 gate）：
   - `core_business_rule` 核心商業規則：改變定價、折扣、額度、結算、狀態轉移條件等業務結果的邏輯
-  - `concurrency` concurrency／狀態機：lock、queue、transaction 邊界、狀態轉移表、重試與冪等處理
+  - `concurrency` concurrency／狀態機：lock、queue、transaction 邊界、狀態轉移表、重試與 idempotent 處理
   - `data_safety` 資料安全：批次刪除、批次更新、個資匯出、跨租戶存取
   - `cross_module_contract` 跨模組介面：改變被多個模組呼叫的共用函式簽章、事件格式、公開型別或回傳契約（路徑類 `public_contract` 只接得到 proto／OpenAPI／型別宣告檔，其餘靠此項）
 - 執行歷史 gate `executor_history`：executor 同一工單曾失敗或逾時；呼叫方以 `--executor-failed` 傳給 script，script 直接判 gate 層（優先於 safe）。

@@ -1,7 +1,7 @@
 {
   "name": "orchestrate-kit",
   "description": "Tech-lead orchestration for Claude Code: diagnose, cut work orders, dispatch Sonnet/Opus executors, verify, risk-graded review, adjudicate, close. Ships risk-grade / risk-calibrate, debug-by-evidence, executable-spec and the executor / reviewer agents.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "JP6"
   }
