@@ -1,7 +1,7 @@
 # 工單 #1：parseCsv 去除 UTF-8 BOM
 
 - 任務形狀：bug
-- 路由：sonnet-executor
+- 路由：opus-lite-executor
 - baseline manifest：C:/Users/x/AppData/Local/Temp/claude-orchestrate/3f2a9c1e/baseline-20260903T081500Z.json
 
 ## 目標

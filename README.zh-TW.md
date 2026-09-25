@@ -2,7 +2,7 @@
 
 [English](README.md) | 正體中文
 
-讓 Claude 以 tech lead 的方式做事的 Claude Code plugin：診斷任務、切窄工單、發派 Sonnet／Opus executor subagent、親自驗收、對變更做風險分級、中高風險交對抗式 reviewer、仲裁 findings、最後出 close 報告。
+讓 Claude 以 tech lead 的方式做事的 Claude Code plugin：診斷任務、切窄工單、發派 Opus executor subagent、親自驗收、對變更做風險分級、中高風險交對抗式 reviewer、仲裁 findings、最後出 close 報告。
 
 ## 內容
 
@@ -13,12 +13,13 @@
 | `risk-calibrate` | skill | 以 ledger 的分級與實際結果對照做校準，產出 risk-policy 措辭修改提案；不直接改 policy。 |
 | `debug-by-evidence` | skill | 證據先於修法。Phase 1 遇到 bug／測試失敗／flaky／效能退化時使用。 |
 | `executable-spec` | skill | 三層可執行規格。任務需要 SPEC 而尚無時，流程會停下來要求先產出。 |
-| `sonnet-lite-executor`、`sonnet-executor`、`opus-executor` | agents | 工單執行者，依難度與風險訊號路由。只做工單上寫的事，不碰 git。 |
+| `opus-lite-executor`、`opus-executor` | agents | 工單執行者，依難度與風險訊號路由（opus-lite 為 effort low，opus 為 effort high）。只做工單上寫的事，不碰 git。 |
+| `opus-lite-explorer` | agent | 唯讀搜尋與精讀，取代內建 Explore／general-purpose（內建 agent 無法指定 effort）。 |
 | `opus-reviewer` | agent | 中高風險變更的對抗式 reviewer。只回傳原始 findings，仲裁由 orchestrator 做。 |
 
 ## 需求
 
-- 支援 plugin 的 Claude Code，方案要能跑 Sonnet 與 Opus（agent 定義檔釘了模型）。
+- 支援 plugin 的 Claude Code，方案要能跑 Opus（agent 定義檔釘了 model 與 effort）。
 - [`uv`](https://docs.astral.sh/uv/)：腳本都是 PEP 723 單檔腳本，以 `uv run` 執行。
 - Python 3.10 以上、`git` 在 PATH 上。
 - Windows：設一次 `PYTHONUTF8=1`（`setx PYTHONUTF8 1`），避免腳本輸出的中文被 CP950 主控台咬壞。
@@ -42,7 +43,7 @@
 
 | 複雜度 | 風險 | 流程怎麼走 |
 | --- | --- | --- |
-| 低 | 低 | 一張工單，`sonnet-lite-executor` 或 `sonnet-executor`，orchestrator 自驗 |
+| 低 | 低 | 一張工單，`opus-lite-executor`，orchestrator 自驗 |
 | 低 | 高 | 一張工單，`opus-executor`（命中 gate），對抗式 review，仲裁 |
 | 高 | 低 | 多張工單序列或並行，orchestrator 自驗 |
 | 高 | 高 | 多張工單，`opus-executor`，逐批對抗式 review |
@@ -79,7 +80,7 @@
 
 ## 選配：用 Codex 做 reviewer 或 rescue
 
-未內附。預設 review 派 `opus-reviewer`；同一張工單 executor 失敗兩次後，rescue 改派另一系 executor（Sonnet ↔ Opus）。有 OpenAI Codex CLI 且想引進異質模型的話：
+未內附。預設 review 派 `opus-reviewer`；同一張工單 executor 失敗兩次後停下回報，不再改派其他 executor。有 OpenAI Codex CLI 且想引進異質模型的話：
 
 1. 安裝 [ai-orchestra](https://github.com/jason201385-commits/ai-orchestra)。其 `dispatch.py` 提供唯讀的 `codex-review` provider 與完整權限的 `codex-full` provider。
 2. 新增 `~/.claude/agents/codex-reviewer.md`（tools：`Bash`）。契約：把 focus 文字寫進暫存檔，背景執行 `cd <repo> && cat <檔> | PYTHONUTF8=1 python <ai-orchestra>/scripts/dispatch.py codex-review --label <名稱> --timeout <秒>`，等完成通知後把 Codex 的最終訊息原樣當 findings 回傳，不修復、不過濾。review sandbox 是唯讀的，prompt 要叫 Codex 自己跑 `git diff`。

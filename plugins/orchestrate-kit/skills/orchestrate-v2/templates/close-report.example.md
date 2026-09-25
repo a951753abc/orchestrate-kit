@@ -2,7 +2,7 @@
 
 ## 做了什麼
 
-- 工單 #1（sonnet-executor）：`parseCsv()` 讀入後去除首位 `\uFEFF`，新增 regression test 與 fixture；一次通過
+- 工單 #1（opus-lite-executor）：`parseCsv()` 讀入後去除首位 `\uFEFF`，新增 regression test 與 fixture；一次通過
 
 ## diff 摘要
 

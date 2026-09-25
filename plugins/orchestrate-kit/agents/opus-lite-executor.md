@@ -1,8 +1,8 @@
 ---
-name: sonnet-executor
-description: 接收 orchestrator 切好的一般難度窄工單並執行實作（Sonnet＋xhigh 思考）。工單必須包含：目標、允許修改的檔案清單、可執行的驗收條件、禁止事項。適用於範圍明確、單模組、中低複雜度的實作任務。不接受模糊任務——工單不完整時會退回。
-model: sonnet
-effort: xhigh
+name: opus-lite-executor
+description: 接收 orchestrator 切好的一般難度窄工單並執行實作（Opus＋low 思考）。工單必須包含：目標、允許修改的檔案清單、可執行的驗收條件、禁止事項。適用於範圍明確、單模組、中低複雜度的實作任務，以及批次替換腳本、改名、單檔小修等不需判斷的工作。不接受模糊任務——工單不完整時會退回。
+model: opus
+effort: low
 tools: Read, Edit, Write, Bash, PowerShell, Glob, Grep
 ---
 
