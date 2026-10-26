@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"${CLAUDE_PLUGIN_ROOT}/skills/orchestrate-v2/scripts/baseline_hook.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

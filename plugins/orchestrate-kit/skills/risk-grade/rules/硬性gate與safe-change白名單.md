@@ -53,7 +53,7 @@ v2 側（executor 用 Decimal，diff +4／-1）：折扣金額計算屬核心商
   - 唯讀 UI 形狀：工單標注「唯讀 UI」——無寫入 command、無授權變更、無演算法或 SQL 語意變更的列表／表單版面與前端接線；不看 diff 大小
   - deterministic 腳本批次替換：orchestrator 產替換表、腳本帶 `count==1` 斷言一次跑完的產出
   - typecheck／tests 完整涵蓋的機械修改：rename、純版本升級、行為不變的搬移
-  - 純加法小工單（凍結測試已覆蓋、diff 小、無授權／資料／concurrency 面）：視為本白名單的一類，同樣只在未命中 gate 時生效
+  - 純加法小工單（單一模組內、不新增被其他模組呼叫的介面、凍結測試已覆蓋、無授權／資料／concurrency 面）：視為本白名單的一類，同樣只在未命中 gate 時生效
 - 路徑類由 script 分類，落在形狀類的檔案（腳本產物、純註解、唯讀 UI）由呼叫方在 judgement 層依脈絡歸類；任一檔案在路徑類與形狀類都不涵蓋 → 不算 safe，進裁量；不得憑「大部分是文件」判低。
 - 形狀類歸 safe 時，ledger `--layer` 記 `safe`。
 - 白名單檔案若同時命中 gate（例如 auth 目錄下的測試），gate 優先；專案可在 policy 該 gate 的 `exclude` 排除測試目錄。

@@ -118,6 +118,23 @@ class SignalsTest(unittest.TestCase):
         self.assertFalse(out["diff"]["formatting_only"])
         self.assertTrue(out["over_attention_limit"])
 
+    # 7a. --git 遇到非 ASCII 檔名時輸出原檔名並照 policy 分類
+    def test_git_mode_non_ascii_path(self) -> None:
+        git(self.repo, "init", "-q")
+        git(self.repo, "config", "user.email", "t@example.com")
+        git(self.repo, "config", "user.name", "t")
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "中文規則.md").write_text("a\n", encoding="utf-8")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-q", "-m", "init")
+        (self.repo / "docs" / "中文規則.md").write_text("a\nb\n", encoding="utf-8")
+        proc = run(SIGNALS, "--repo", str(self.repo), "--git", cwd=self.repo)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual([f["path"] for f in out["files"]], ["docs/中文規則.md"])
+        self.assertEqual(out["files"][0]["safe"], "docs")
+        self.assertEqual(out["unclassified"], [])
+
     # 8. --git 在非 git 目錄 exit 2
     def test_git_mode_non_repo(self) -> None:
         proc = run(SIGNALS, "--repo", str(self.repo), "--git", cwd=self.repo)

@@ -2,11 +2,18 @@
 
 - 任務形狀：bug
 - 路由：opus-lite-executor
+- 交付範圍：CSV 匯入 BOM 修正
+- 專案目錄：C:/Users/x/project
 - baseline manifest：C:/Users/x/AppData/Local/Temp/claude-orchestrate/3f2a9c1e/baseline-20260903T081500Z.json
+- 證據檔目錄：C:/Users/x/AppData/Local/Temp/claude-orchestrate/3f2a9c1e/evidence-wo1/
 
 ## 目標
 
 `parseCsv()` 讀取 UTF-8 BOM 開頭的檔案時，首欄名不得帶 `\uFEFF`。
+
+## 使用情境
+
+內部匯入工具：維運人員在自己的電腦匯入客戶提供的 CSV；匯入結果可從原始 CSV 重新匯入，匯入錯誤由維運人員刪掉該批後重跑。
 
 ## 允許修改的檔案
 
@@ -20,10 +27,10 @@
 
 ## 驗收條件
 
-- `npm test -- tests/csv/bom.spec.ts` 全綠
-- `node scripts/import.js tests/fixtures/bom.csv` 輸出的第一個欄名為 `id`
-- `npm run typecheck` exit 0
-- `npm test` 全綠
+- V1（修改前要跑）：`npm test -- tests/csv/bom.spec.ts`，修改前失敗、修改後全綠
+- V2（修改前要跑）：`node scripts/import.js tests/fixtures/bom.csv`，修改前第一個欄名為 `\uFEFFid`、修改後為 `id`
+- V3（只在修改後跑）：`npm run typecheck` exit 0
+- V4（修改前要跑）：`npm test`，修改後的失敗數不多於修改前，且沒有新的失敗案例
 
 ## 禁止事項
 
@@ -45,6 +52,6 @@
 
 ## Bug 補充驗收
 
-- 修正前執行 `npm test -- tests/csv/bom.spec.ts` 必須失敗，貼失敗輸出
-- 修正後同一測試通過
-- 原始症狀驗證：`node scripts/import.js tests/fixtures/bom.csv` 首欄名為 `id`
+- 修正前失敗證據：V1、V2 的 `before-V1.txt`、`before-V2.txt`
+- regression test：V1 修改前失敗、修改後通過
+- 原始症狀驗證：V2

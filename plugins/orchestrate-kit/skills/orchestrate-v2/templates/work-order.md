@@ -1,14 +1,22 @@
 # 工單 {{WORK_ORDER_ID}}：{{WORK_ORDER_TITLE}}
 
-<!-- 目標、允許修改的檔案、驗收條件、禁止事項四段必填，缺一不發派 -->
+<!-- 目標、使用情境、允許修改的檔案、驗收條件、禁止事項五段與證據檔目錄必填，缺一不發派 -->
 
 - 任務形狀：{{TASK_SHAPE}}
 - 路由：{{EXECUTOR_AGENT}}
-- baseline manifest：{{BASELINE_MANIFEST_PATH}} <!-- Phase 3 snapshot 後回填 -->
+- 交付範圍：{{DELIVERY_SCOPE_NAME}} <!-- 同一輪 review 一起交付的工單；修正工單填「修正：<原交付範圍>」 -->
+- 專案目錄：{{REPO_DIR}} <!-- baseline hook 從這行取 repo；與 session cwd 相同也要填 -->
+- baseline manifest：{{BASELINE_MANIFEST_PATH}} <!-- hook 自動 snapshot 後回填 -->
+- 證據檔目錄：{{EVIDENCE_DIR}} <!-- 放 repo 外；executor 修改前寫 before-<驗收編號>.txt、修改後寫 after-<驗收編號>.txt，每檔第一行 `$ <指令原文>`、下一行 `exit code: <n>`，再接完整輸出；同一檔多次執行依序附加；executor 的回報全文在完成通知的最後訊息裡，orchestrator 要留存時自己存成本目錄的 report.md，不要求 executor 另建報告檔（2026-10-10 實測背景 agent 的 task output 檔是空的） -->
 
 ## 目標
 
 {{GOAL_ONE_SENTENCE}}
+
+## 使用情境
+
+<!-- 誰在用、什麼環境、資料可否重建、誰負責復原；review focus 沿用 -->
+{{USAGE_CONTEXT}}
 
 ## 允許修改的檔案
 
@@ -20,7 +28,9 @@
 
 ## 驗收條件
 
-{{ACCEPTANCE_COMMANDS_AND_EXPECTED_RESULTS}}
+<!-- 逐條編號；執行時點填「修改前要跑」（問題重現、比較基準）或「只在修改後跑」；修改前＝改動被測程式之前，工單要求新增的測試與 fixture 可先寫好；前景 Bash 指令 10 分鐘會被停掉，輸出沒有 exit code、不能當證據，容器內（`docker exec`）的行程不會跟著停：預估超過 10 分鐘的驗收指令寫明以 `run_in_background` 執行並指定 timeout，或留給 orchestrator 自己跑 -->
+<!-- 測試分快慢兩層寫：改動中只跑本工單相關的測試（filter 或變更檔），工單收尾跑一次全套快測試，瀏覽器或 e2e 只在收尾或工單改到畫面流程時跑；每條測試指令的證據檔記下秒數 -->
+- {{ACCEPTANCE_ID}}（{{RUN_TIMING}}）：{{ACCEPTANCE_COMMAND_AND_EXPECTED_RESULT}}
 
 ## 禁止事項
 
@@ -30,6 +40,11 @@
 {{EXTRA_PROHIBITIONS}}
 
 <!-- 以下各段選填：不適用時整段刪除 -->
+
+## 一次性操作
+
+<!-- 替換腳本、migration、資料匯入這類再跑一次結果不同的操作填：executor 只執行一次並把輸出寫進證據檔目錄的 after-op.txt；驗收條件只寫結果檢查 -->
+{{ONE_TIME_OPERATION}}
 
 ## 測試品質約束
 

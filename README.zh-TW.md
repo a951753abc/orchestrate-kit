@@ -16,12 +16,16 @@
 | `opus-lite-executor`、`opus-executor` | agents | 工單執行者，依難度與風險訊號路由（opus-lite 為 effort low，opus 為 effort high）。只做工單上寫的事，不碰 git。 |
 | `opus-lite-explorer` | agent | 唯讀搜尋與精讀，取代內建 Explore／general-purpose（內建 agent 無法指定 effort）。 |
 | `opus-reviewer` | agent | 中高風險變更的對抗式 reviewer。只回傳原始 findings，仲裁由 orchestrator 做。 |
+| `opus-lite-verifier` | agent | 瀏覽器驗收：執行工單的瀏覽器檢查，回傳截圖與量測結果作為證據。 |
+| `check_evidence.py` | script（在 `orchestrate-v2` 內） | 一次讀完 executor 的證據檔目錄，逐檔列出指令原文、最後的 exit code 與輸出末段，並標出缺 exit code、最後 exit 非 0、驗收項目缺 after 檔。 |
+| baseline hook | 內附 `PreToolUse` hook | 每次發派 executor（`Agent`／`Task` tool）前把 working tree 拍成 baseline；非 executor 的 agent 立即結束。 |
 
 ## 需求
 
 - 支援 plugin 的 Claude Code，方案要能跑 Opus（agent 定義檔釘了 model 與 effort）。
 - [`uv`](https://docs.astral.sh/uv/)：腳本都是 PEP 723 單檔腳本，以 `uv run` 執行。
 - Python 3.10 以上、`git` 在 PATH 上。
+- 選配：Playwright MCP，只有瀏覽器驗收（`opus-lite-verifier`）需要。
 - Windows：設一次 `PYTHONUTF8=1`（`setx PYTHONUTF8 1`），避免腳本輸出的中文被 CP950 主控台咬壞。
 
 ## 安裝
@@ -77,6 +81,14 @@
 - 專案的風險 policy：`.claude/risk-policy.yaml`（要求時依內附樣板建立；宣告敏感路徑與 safe-change 範圍）。
 - 全域 ledger：`~/.claude/risk-grade/ledger.jsonl`。
 - baseline manifest：`<系統 temp>/claude-orchestrate/<repo hash>/`。
+
+## 0.3.0 新增內容
+
+1. **自動 baseline**：plugin 的 `PreToolUse` hook 在每次發派 executor 前拍 working tree snapshot；snapshot 失敗時擋下該次派工，不影響其他工具。
+2. **證據檔一次判讀**：orchestrator 以 `check_evidence.py` 讀 executor 的證據檔，不逐檔打開（`--dir` 證據檔目錄、`--expect` 驗收編號、`--allow` 允許檔）。
+3. **小工單直接做**：單一模組、未命中 risk gate、預估 15 個工具呼叫內、不並行、無瀏覽器驗收的工單，由 orchestrator 自己做，不派 executor。在作者的歷史工單重播中，小工單直接做約省一半時間與 token。
+4. **分級更輕**：機械風險訊號已能定案分級時，不載入 `risk-grade` skill。
+5. **瀏覽器驗收**：交給 `opus-lite-verifier`。
 
 ## 選配：用 Codex 做 reviewer 或 rescue
 

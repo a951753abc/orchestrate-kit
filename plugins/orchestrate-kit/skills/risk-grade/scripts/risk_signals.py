@@ -75,7 +75,7 @@ def load_policy(repo: Path, explicit: str | None) -> tuple[dict, str]:
 
 
 def git(repo: Path, *args: str) -> str:
-    proc = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.run(["git", "-C", str(repo), "-c", "core.quotepath=off", *args], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip())
     return proc.stdout

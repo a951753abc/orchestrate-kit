@@ -16,12 +16,16 @@ A Claude Code plugin that makes Claude work like a tech lead: diagnose the task,
 | `opus-lite-executor`, `opus-executor` | agents | Work-order executors, routed by difficulty and by risk signals (opus-lite runs at effort low, opus at effort high). They only do what the work order says and never touch git. |
 | `opus-lite-explorer` | agent | Read-only search and close reading, replacing the built-in Explore / general-purpose agents (built-in agents cannot pin effort). |
 | `opus-reviewer` | agent | Adversarial reviewer for medium/high-risk changes. Returns raw findings; the orchestrator adjudicates. |
+| `opus-lite-verifier` | agent | Browser acceptance: runs the work order's browser checks and returns screenshots and measurements as evidence. |
+| `check_evidence.py` | script (in `orchestrate-v2`) | Reads an executor's evidence directory in one call and reports per file the command, final exit code and output tail, flagging missing exit codes, non-zero final exits and acceptance items without an after-file. |
+| baseline hook | bundled `PreToolUse` hook | Before every executor dispatch (`Agent`/`Task` tool), snapshots the working tree as the baseline; returns immediately for non-executor agents. |
 
 ## Requirements
 
 - Claude Code with plugin support, on a plan that can run Opus (the agent definitions pin model and effort).
 - [`uv`](https://docs.astral.sh/uv/) — the scripts are single-file PEP 723 scripts run with `uv run`.
 - Python 3.10+ and `git` on PATH.
+- Optional: Playwright MCP, needed only for browser acceptance (`opus-lite-verifier`).
 - Windows: set `PYTHONUTF8=1` once (`setx PYTHONUTF8 1`) so script output containing CJK text is not mangled by the CP950 console.
 
 ## Install
@@ -77,6 +81,14 @@ Where state lives:
 - Per-project risk policy: `.claude/risk-policy.yaml` (created from the bundled template on request; declares your sensitive paths and safe-change paths).
 - Global ledger: `~/.claude/risk-grade/ledger.jsonl`.
 - Baseline manifests: `<system temp>/claude-orchestrate/<repo hash>/`.
+
+## What's new in 0.3.0
+
+1. **Automatic baseline** — the plugin's `PreToolUse` hook snapshots the working tree before each executor dispatch. If the snapshot fails, the dispatch is blocked; no other tool is affected.
+2. **One-call evidence check** — the orchestrator reads executor evidence files with `check_evidence.py` instead of opening them one by one (`--dir` evidence directory, `--expect` acceptance IDs, `--allow` allowed files).
+3. **Small orders done directly** — a work order that stays in one module, hits no risk gate, fits in about 15 tool calls, runs alone, and needs no browser acceptance is done by the orchestrator itself instead of being dispatched. In replays of the author's past work orders this saved roughly half the time and tokens.
+4. **Lighter grading** — when the mechanical risk signals already settle the grade, the `risk-grade` skill is not loaded.
+5. **Browser acceptance** — handed to `opus-lite-verifier`.
 
 ## Optional: Codex as reviewer or rescue
 

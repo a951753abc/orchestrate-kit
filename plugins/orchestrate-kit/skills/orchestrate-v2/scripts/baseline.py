@@ -10,6 +10,7 @@
 
 snapshot 記錄 dirty／staged／untracked 檔案的路徑、狀態、working copy sha256、staged blob id 與大小，
 完整 patch 另存同名 .patch。非 git 目錄 exit 2 且不寫檔。
+讀檔不妨礙其他程序 rename／刪除該檔；讀不到的檔案 sha256 記為 unreadable:<錯誤型別> 並在 stderr 列出。
 compare 產出四類 finding：越界修改（out_of_scope）、新 staged 內容（new_staged）、
 未授權的新 untracked（unauthorized_untracked）、baseline 時已 dirty 的檔案內容改變（baseline_dirty_changed，
 在 allow 內者標 in_scope 仍列出）。有 finding exit 1，乾淨 exit 0，baseline 讀不到或非 git exit 2。
@@ -26,6 +27,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -86,19 +88,48 @@ def staged_blob(repo: Path, path: str) -> str | None:
     return proc.stdout.strip() or None
 
 
+def open_shared(p: Path):
+    """唯讀開檔。Windows 上帶 FILE_SHARE_DELETE：讀取期間其他程序仍可 rename 覆寫或刪除該檔
+    （Python 預設開檔不帶，會讓對方的原子寫入失敗）。"""
+    if os.name != "nt":
+        return p.open("rb")
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateFileW.restype = wintypes.HANDLE
+    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                                wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    # GENERIC_READ；FILE_SHARE_READ|WRITE|DELETE；OPEN_EXISTING；FILE_ATTRIBUTE_NORMAL
+    handle = k32.CreateFileW(str(p), 0x80000000, 0x1 | 0x2 | 0x4, None, 3, 0x80, None)
+    if handle == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return os.fdopen(msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY), "rb")
+
+
 def working_hash(repo: Path, path: str) -> tuple[str | None, int | None]:
+    """讀不到的檔案（被其他程序獨占、讀到一半被換掉）重試後記為 unreadable:<錯誤型別>，不中止整支腳本。"""
     p = repo / path
     if p.is_symlink():
         return f"symlink:{os.readlink(p)}", None
     if not p.is_file():
         return None, None
-    h = hashlib.sha256()
-    size = 0
-    with p.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-            size += len(chunk)
-    return h.hexdigest(), size
+    error: OSError | None = None
+    for _ in range(3):
+        h = hashlib.sha256()
+        size = 0
+        try:
+            with open_shared(p) as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+                    size += len(chunk)
+            return h.hexdigest(), size
+        except OSError as exc:
+            error = exc
+            time.sleep(0.1)
+    print(f"unreadable, recorded without hash: {path} ({error})", file=sys.stderr)
+    return f"unreadable:{type(error).__name__}", None
 
 
 # ---------- snapshot ----------
@@ -129,22 +160,27 @@ def default_out(repo: Path) -> Path:
     return Path(tempfile.gettempdir()) / "claude-orchestrate" / digest / f"baseline-{stamp}.json"
 
 
+def write_snapshot(repo: Path, out: Path) -> tuple[Path, int]:
+    """寫 manifest 與同名 .patch；回傳 manifest 路徑與檔案數。repo 須為 repo_root() 的結果。"""
+    data = collect(repo)
+    data["created_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    patch = git(repo, "diff", "--no-ext-diff", "--binary") + git(repo, "diff", "--cached", "--no-ext-diff", "--binary")
+    patch_path = out.with_suffix(".patch")
+    patch_path.write_text(patch, encoding="utf-8", errors="surrogateescape", newline="")  # 不轉 CRLF，git apply 才吃得下
+    data["patch"] = str(patch_path)
+    out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out, len(data["files"])
+
+
 def cmd_snapshot(args: argparse.Namespace) -> int:
     repo = repo_root(Path(args.repo))
     if repo is None:
         print(f"not a git repository: {args.repo}", file=sys.stderr)
         return 2
-    data = collect(repo)
-    data["created_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
-    out = Path(args.out) if args.out else default_out(repo)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    patch = git(repo, "diff", "--no-ext-diff", "--binary") + git(repo, "diff", "--cached", "--no-ext-diff", "--binary")
-    patch_path = out.with_suffix(".patch")
-    patch_path.write_text(patch, encoding="utf-8", errors="surrogateescape")
-    data["patch"] = str(patch_path)
-    out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    out, count = write_snapshot(repo, Path(args.out) if args.out else default_out(repo))
     print(f"baseline written: {out}")
-    print(f"files recorded: {len(data['files'])}")
+    print(f"files recorded: {count}")
     return 0
 
 

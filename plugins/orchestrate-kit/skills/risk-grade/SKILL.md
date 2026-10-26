@@ -1,6 +1,6 @@
 ---
 name: risk-grade
-description: 對一組程式碼變更做風險分級：硬性 gate → safe-change 白名單 → 裁量三層漏斗，輸出等級、命中 gate 與理由並記入全域 ledger。供 orchestrate-v2 Phase 5、派 review 前、或手動查詢使用。結果回填用 scripts/risk_ledger.py outcome，定期校準走 risk-calibrate。
+description: 對一組程式碼變更做風險分級：硬性 gate → safe-change 白名單 → 裁量三層漏斗，輸出等級、命中 gate 與理由並記入全域 ledger。供 orchestrate-v2 Phase 4、派 review 前、或手動查詢使用。結果回填用 scripts/risk_ledger.py outcome，定期校準走 risk-calibrate。
 argument-hint: <變更範圍描述與脈絡>
 ---
 

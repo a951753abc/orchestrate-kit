@@ -11,7 +11,7 @@ description: Write feature SPECs and requirement documents as three-layer execut
 
 - 用於：撰寫或更新功能 SPEC、需求文件、驗收條件；為 AI 實作任務定義驗證關卡；review 既有 SPEC 的可執行性。
 - 不用於：純架構計畫（PLAN 本來就是散文）、遷移 runbook、純文件任務。
-- 與 orchestrate 分工：本 skill 管規格產物的形狀與衍生工件；工單切分、發派、驗收流程歸 orchestrate。
+- 與 `/orchestrate-kit:orchestrate-v2` 分工：本 skill 管規格產物的形狀與衍生工件；工單切分、發派、驗收流程歸 `/orchestrate-kit:orchestrate-v2`。
 
 ## SPEC 三層結構
 
@@ -81,6 +81,7 @@ PBT 套件：優先用專案既有（hypothesis、fast-check、proptest 等）�
 1. **驗收測試凍結**：驗收測試在實作開始前完成並經核可；實作期間為唯讀。發現測試本身有誤時停下回報，不默默修改。驗收時以 diff 確認驗收測試檔未被實作方變更。
 2. **assertion 隨測試執行**：dev／test 環境開啟 assertion，讓每次跑測試同時檢查全部合約（測試放大效果）。生產環境的合約保留策略由使用者決定。
 3. **例子與 property 分開陳報**：驗收回報時分別列出情境測試與 property test 的結果；property 失敗附上工具縮小後的最小反例。
+4. **紅燈原因確認**：驗收測試寫好後先跑一次，逐例確認失敗訊息是預期的差異（狀態碼、欄位值、筆數不符）。失敗原因是 schema 缺欄位、路由不存在、例外，代表 assertion 還沒被執行到：先補最小的 schema 或路由，讓測試紅在 assertion，再開始實作。回報時引用失敗訊息的 diff。
 
 ## 驗收 Checklist
 
@@ -91,3 +92,5 @@ PBT 套件：優先用專案既有（hypothesis、fast-check、proptest 等）�
 - [ ] 驗收測試在實作前存在且經核可，測試名可追溯到情境編號
 - [ ] 每功能 2～5 條 property test，或明確記錄為何不適用（如純查表規則）
 - [ ] 實作 diff 未觸碰驗收測試檔
+- [ ] 測試框架有內建 mutation testing 時，對本次改到的產品檔跑一次，附分數與 escaped 清單；escaped 逐條補測試或寫明業務上無差異的理由
+- [ ] 斷言「沒有發生某個效果」的測試，旁邊有一個會發生該效果的對照情境
