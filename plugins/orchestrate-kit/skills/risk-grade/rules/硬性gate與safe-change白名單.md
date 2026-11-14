@@ -82,7 +82,7 @@ v2 側（executor 用 Decimal，diff +4／-1）：折扣金額計算屬核心商
 
 - Level: `MUST`
 - 每次分級完成後執行 `scripts/risk_ledger.py record`，記錄 repo、檔案數、等級、判定層、命中 gate、理由、呼叫來源；回傳的 id 寫進分級報告。
-- 呼叫方拿到 review 結果、事故或 close 後，以 `outcome` 回填 findings 數與處置。
+- 呼叫方拿到 review 結果、事故或 close 後，以 `outcome` 回填 review findings 的處置條數（`--fixed`／`--deferred`／`--rejected`）與修正條目的類別（`--category`）。多張工單合併成一次 review 時，處置條數只回填在承載 review 結果的 id，其餘 id 以 `--merged-into <該 id>` 回填。
 - 沒記帳的分級無法進入校準，視為分級未完成。
 - 沒有 working tree 變更、只以允許檔清單做的估算不是分級，不記 ledger；只有以實際變更做的判定才記。
 
@@ -92,7 +92,7 @@ v2 側（executor 用 Decimal，diff +4／-1）：折扣金額計算屬核心商
 
 ````md
 record：rg-20260903T031500Z-a1b2 high layer=gate gates=core_business_rule source=orchestrate-v2
-outcome：rg-20260903T031500Z-a1b2 findings=1 result="F1 PLAUSIBLE 交使用者；無實害"
+outcome：rg-20260903T031500Z-a1b2 findings=1 deferred=1 result="F1 PLAUSIBLE 交使用者；無實害"
 ````
 
 ## Bad Example

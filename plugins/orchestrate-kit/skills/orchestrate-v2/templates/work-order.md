@@ -7,7 +7,8 @@
 - 交付範圍：{{DELIVERY_SCOPE_NAME}} <!-- 同一輪 review 一起交付的工單；修正工單填「修正：<原交付範圍>」 -->
 - 專案目錄：{{REPO_DIR}} <!-- baseline hook 從這行取 repo；與 session cwd 相同也要填 -->
 - baseline manifest：{{BASELINE_MANIFEST_PATH}} <!-- hook 自動 snapshot 後回填 -->
-- 證據檔目錄：{{EVIDENCE_DIR}} <!-- 放 repo 外；executor 修改前寫 before-<驗收編號>.txt、修改後寫 after-<驗收編號>.txt，每檔第一行 `$ <指令原文>`、下一行 `exit code: <n>`，再接完整輸出；同一檔多次執行依序附加；executor 的回報全文在完成通知的最後訊息裡，orchestrator 要留存時自己存成本目錄的 report.md，不要求 executor 另建報告檔（2026-10-10 實測背景 agent 的 task output 檔是空的） -->
+- 證據檔目錄：{{EVIDENCE_DIR}} <!-- 放 repo 外；證據檔的檔名、寫法與格式見 executor 定義檔（`opus-executor`、`opus-lite-executor` 的「完成定義」）；executor 的回報全文在完成通知的最後訊息裡，orchestrator 要留存時自己存成本目錄的 report.md，不要求 executor 另建報告檔（2026-10-10 實測背景 agent 的 task output 檔是空的） -->
+- 共同段：{{COMMON_SECTION_PATH}} <!-- 同形批次工單才填（`rules/工單判準與形狀補充.md` Rule 11）；不適用時整行刪除 -->
 
 ## 目標
 
@@ -29,7 +30,7 @@
 ## 驗收條件
 
 <!-- 逐條編號；執行時點填「修改前要跑」（問題重現、比較基準）或「只在修改後跑」；修改前＝改動被測程式之前，工單要求新增的測試與 fixture 可先寫好；前景 Bash 指令 10 分鐘會被停掉，輸出沒有 exit code、不能當證據，容器內（`docker exec`）的行程不會跟著停：預估超過 10 分鐘的驗收指令寫明以 `run_in_background` 執行並指定 timeout，或留給 orchestrator 自己跑 -->
-<!-- 測試分快慢兩層寫：改動中只跑本工單相關的測試（filter 或變更檔），工單收尾跑一次全套快測試，瀏覽器或 e2e 只在收尾或工單改到畫面流程時跑；每條測試指令的證據檔記下秒數 -->
+<!-- 測試節奏：改動中只跑本工單相關的測試（filter 或變更檔），工單收尾跑一次全套快測試（修正工單只跑受影響範圍）；慢層（瀏覽器、e2e、長時間整合、整套大型測試）不在一般工單跑：工單改到的地方屬於慢層的涵蓋範圍時（例：畫面流程），驗收改寫涵蓋這次改動的輕量測試（單支測試檔或 filter），整套留到 push；專案有 push 後自動執行的 CI 時慢層由 CI 跑，沒有 CI 時由交付範圍內明確的驗證工單在 push 之前跑一次；工單改到慢層的測試腳本本身、或目標是重現 CI 的失敗時，才把慢層寫進本工單的驗收（跑一次）；每條測試指令的證據檔記下秒數 -->
 - {{ACCEPTANCE_ID}}（{{RUN_TIMING}}）：{{ACCEPTANCE_COMMAND_AND_EXPECTED_RESULT}}
 
 ## 禁止事項

@@ -1,7 +1,7 @@
 {
   "name": "orchestrate-kit",
-  "description": "Tech-lead orchestration for Claude Code: diagnose, cut work orders, dispatch Opus executors, verify, risk-graded review, adjudicate, close. Ships risk-grade / risk-calibrate, debug-by-evidence, executable-spec and the executor / reviewer / verifier agents, plus a bundled PreToolUse hook that snapshots the working tree before each executor dispatch.",
-  "version": "0.3.0",
+  "description": "Tech-lead orchestration for Claude Code: diagnose, cut work orders, dispatch Opus executors, verify, risk-graded review, adjudicate, close. Ships risk-grade / risk-calibrate, debug-by-evidence, executable-spec, role-ui-walkthrough (usability walkthrough by screen-only role agents), gap-adjudication-report and the executor / reviewer / verifier agents, plus bundled hooks that snapshot the working tree before each executor dispatch and remind the session to re-read rules after compaction.",
+  "version": "0.4.0",
   "author": {
     "name": "JP6"
   }

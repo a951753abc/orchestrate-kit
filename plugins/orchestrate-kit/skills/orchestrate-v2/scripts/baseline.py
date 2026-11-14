@@ -11,9 +11,12 @@
 snapshot 記錄 dirty／staged／untracked 檔案的路徑、狀態、working copy sha256、staged blob id 與大小，
 完整 patch 另存同名 .patch。非 git 目錄 exit 2 且不寫檔。
 讀檔不妨礙其他程序 rename／刪除該檔；讀不到的檔案 sha256 記為 unreadable:<錯誤型別> 並在 stderr 列出。
-compare 產出四類 finding：越界修改（out_of_scope）、新 staged 內容（new_staged）、
+compare 產出五類 finding：越界修改（out_of_scope）、新 staged 內容（new_staged）、
 未授權的新 untracked（unauthorized_untracked）、baseline 時已 dirty 的檔案內容改變（baseline_dirty_changed，
-在 allow 內者標 in_scope 仍列出）。有 finding exit 1，乾淨 exit 0，baseline 讀不到或非 git exit 2。
+在 allow 內者標 in_scope 仍列出）、HEAD 與 snapshot 記下的 head 不同（head_moved，列出舊..新的 commit，
+最多 20 筆、由舊到新；舊 head 不是新 HEAD 的祖先時 commits 為空並加註記；manifest 沒有 head 時不判定）。
+有 finding exit 1，乾淨 exit 0，baseline 讀不到或非 git exit 2。
+已知限制：HEAD 移動後，已被 commit 的檔案不再是 dirty，前四類判定看不到這些檔案的修改，要從 head_moved 的 commits 追查。
 """
 
 from __future__ import annotations
@@ -212,8 +215,24 @@ def cmd_compare(args: argparse.Namespace) -> int:
     self_files = {normalize(repo, str(base_path.resolve())), normalize(repo, base.get("patch", ""))}
     ignored = lambda p: any(fnmatch.fnmatch(p, pat) for pat in args.ignore)  # noqa: E731
     before: dict[str, dict] = {p: f for p, f in base["files"].items() if not ignored(p)}
-    now = {p: f for p, f in collect(repo)["files"].items() if p not in self_files and not ignored(p)}
+    current = collect(repo)
+    now = {p: f for p, f in current["files"].items() if p not in self_files and not ignored(p)}
     findings: list[dict] = []
+
+    # 5. HEAD 與 snapshot 不同（manifest 沒有 head 或為 null 時不判定）
+    old_head, new_head = base.get("head"), current["head"]
+    if old_head and new_head != old_head:
+        moved = {"type": "head_moved", "path": "", "in_scope": False,
+                 "baseline_head": old_head, "current_head": new_head, "commits": []}
+        is_ancestor = new_head is not None and subprocess.run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", old_head, new_head], capture_output=True,
+        ).returncode == 0
+        if is_ancestor:
+            log = git(repo, "log", "--reverse", "-n", "20", "--format=%h %an %s", f"{old_head}..{new_head}")
+            moved["commits"] = [line for line in log.splitlines() if line]
+        else:
+            moved["note"] = "baseline head is not an ancestor"
+        findings.append(moved)
 
     for path, cur in now.items():
         prev = before.get(path)
@@ -245,6 +264,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
         for f in findings:
             scope = " (in-scope)" if f.get("in_scope") else ""
             note = f" [{f['note']}]" if f.get("note") else ""
+            if f["type"] == "head_moved":
+                print(f"head_moved: {f['baseline_head']} -> {f['current_head']} ({len(f['commits'])} commits){note}")
+                for line in f["commits"]:
+                    print(f"  {line}")
+                continue
             print(f"{f['type']}: {f['path']}{scope}{note}")
     else:
         print("clean: no findings")

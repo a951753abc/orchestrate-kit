@@ -11,6 +11,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run \"${CLAUDE_PLUGIN_ROOT}/skills/orchestrate-v2/scripts/compact_reminder_hook.py\"",
+            "timeout": 15
+          }
+        ]
+      }
     ]
   }
 }

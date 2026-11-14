@@ -4,6 +4,8 @@
 
 讓 Claude 以 tech lead 的方式做事的 Claude Code plugin：診斷任務、切窄工單、發派 Opus executor subagent、親自驗收、對變更做風險分級、中高風險交對抗式 reviewer、仲裁 findings、最後出 close 報告。
 
+另外內附 [`role-ui-walkthrough`](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.zh-TW.md)：派角色 agent 只看畫面操作系統的操作測試，以同一套流程產出現況表、圖文操作手冊與裁決報告。
+
 ## 內容
 
 | 元件 | 類型 | 角色 |
@@ -13,19 +15,23 @@
 | `risk-calibrate` | skill | 以 ledger 的分級與實際結果對照做校準，產出 risk-policy 措辭修改提案；不直接改 policy。 |
 | `debug-by-evidence` | skill | 證據先於修法。Phase 1 遇到 bug／測試失敗／flaky／效能退化時使用。 |
 | `executable-spec` | skill | 三層可執行規格。任務需要 SPEC 而尚無時，流程會停下來要求先產出。 |
+| `role-ui-walkthrough` | skill | 操作測試：每個角色一個 agent，只靠截圖與座標點擊操作本機網站、不讀程式碼；主控對照截圖、程式與既有裁定查證每項發現。見它的 [README](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.zh-TW.md)。 |
+| `gap-adjudication-report` | skill | 缺口盤點與裁決報告（HTML 決策文件）的產出規範：UI 定位與框選截圖、證據來源分類、交叉查證、全掃描範圍、一頁索引。 |
 | `opus-lite-executor`、`opus-executor` | agents | 工單執行者，依難度與風險訊號路由（opus-lite 為 effort low，opus 為 effort high）。只做工單上寫的事，不碰 git。 |
 | `opus-lite-explorer` | agent | 唯讀搜尋與精讀，取代內建 Explore／general-purpose（內建 agent 無法指定 effort）。 |
 | `opus-reviewer` | agent | 中高風險變更的對抗式 reviewer。只回傳原始 findings，仲裁由 orchestrator 做。 |
 | `opus-lite-verifier` | agent | 瀏覽器驗收：執行工單的瀏覽器檢查，回傳截圖與量測結果作為證據。 |
 | `check_evidence.py` | script（在 `orchestrate-v2` 內） | 一次讀完 executor 的證據檔目錄，逐檔列出指令原文、最後的 exit code 與輸出末段，並標出缺 exit code、最後 exit 非 0、驗收項目缺 after 檔。 |
+| `run_evidence.py` | script（在 `orchestrate-v2` 內） | 執行一條驗收指令，把指令原文、exit code、秒數與完整輸出附加到工單的證據檔，格式即 `check_evidence.py` 讀取的格式。 |
 | baseline hook | 內附 `PreToolUse` hook | 每次發派 executor（`Agent`／`Task` tool）前把 working tree 拍成 baseline；非 executor 的 agent 立即結束。 |
+| 壓縮後提醒 hook | 內附 `SessionStart` hook | context 壓縮之後，載入過 `orchestrate-v2` 的 session 會被提醒在下一個步驟重新讀取規則檔，不依壓縮摘要執行。 |
 
 ## 需求
 
 - 支援 plugin 的 Claude Code，方案要能跑 Opus（agent 定義檔釘了 model 與 effort）。
 - [`uv`](https://docs.astral.sh/uv/)：腳本都是 PEP 723 單檔腳本，以 `uv run` 執行。
 - Python 3.10 以上、`git` 在 PATH 上。
-- 選配：Playwright MCP，只有瀏覽器驗收（`opus-lite-verifier`）需要。
+- 選配：Playwright MCP，瀏覽器驗收（`opus-lite-verifier`）與 `role-ui-walkthrough` 需要。
 - Windows：設一次 `PYTHONUTF8=1`（`setx PYTHONUTF8 1`），避免腳本輸出的中文被 CP950 主控台咬壞。
 
 ## 安裝
@@ -64,9 +70,9 @@
 
 1. **診斷**：讀任務與 code，把假設分類；需要你裁決的產品決策會在切工單前先問。
 2. **切工單**：每張工單有目標、允許修改的檔案清單、可執行的驗收指令與禁止事項；每張工單先跑一次風險訊號估算，決定派哪個 executor。
-3. **發派**：驗收指令先在現況跑一次，確認修正前會失敗；每次發派前拍 baseline snapshot。
-4. **驗收**：baseline compare（越界檔即退回）加上 orchestrator 親自重跑每條驗收指令。executor 的回報不算證據。
-5. **Review**：由 `risk-grade` 決定；中高風險帶四面向 focus 派 `opus-reviewer`，低風險自驗。
+3. **發派**：每次發派前拍 baseline snapshot。executor 先跑標為「修改前要跑」的驗收，留下修改前的失敗或基準結果，修改後再跑全部驗收；每次執行都經 `run_evidence.py` 寫進證據檔。
+4. **驗收**：baseline compare（越界檔即退回），接著 orchestrator 以 `check_evidence.py` 讀證據檔，依指令原文、exit code 與輸出逐條判定。executor 的摘要不算證據；會破壞資料、造成授權錯誤或波及其他系統的驗收項目由 orchestrator 自己重跑。
+5. **Review**：由 `risk-grade` 決定；中高風險帶五面向 focus 與審查檔案清單派 `opus-reviewer`，低風險自驗。
 6. **仲裁**：每條 finding 對照 code 查證：真問題開新窄工單、假陽性記錄否決理由、PLAUSIBLE 交給你裁決。
 7. **Close**：出報告並回填 ledger outcome。沒有你的指示不會 commit。
 
@@ -74,21 +80,28 @@
 
 - `/orchestrate-kit:risk-grade <變更範圍與脈絡>`：不走完整流程，只做分級。
 - `/orchestrate-kit:risk-calibrate [專案目錄]`：某專案 ledger 累積約十筆已回填結果後使用。
-- `debug-by-evidence` 與 `executable-spec` 會依 description 自動觸發，也可直接以名稱呼叫。
+- `/orchestrate-kit:role-ui-walkthrough <角色、要走的旅程、要的產出>`：只看畫面的操作測試，見它的 [README](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.zh-TW.md)。
+- `debug-by-evidence`、`executable-spec` 與 `gap-adjudication-report` 會依 description 自動觸發，也可直接以名稱呼叫。
 
 狀態放哪裡：
 
 - 專案的風險 policy：`.claude/risk-policy.yaml`（要求時依內附樣板建立；宣告敏感路徑與 safe-change 範圍）。
 - 全域 ledger：`~/.claude/risk-grade/ledger.jsonl`。
 - baseline manifest：`<系統 temp>/claude-orchestrate/<repo hash>/`。
+- 待裁清單：本任務證據檔目錄的上層目錄內的 `pending-decisions.md`。
 
-## 0.3.0 新增內容
+## 0.4.0 新增內容
 
-1. **自動 baseline**：plugin 的 `PreToolUse` hook 在每次發派 executor 前拍 working tree snapshot；snapshot 失敗時擋下該次派工，不影響其他工具。
-2. **證據檔一次判讀**：orchestrator 以 `check_evidence.py` 讀 executor 的證據檔，不逐檔打開（`--dir` 證據檔目錄、`--expect` 驗收編號、`--allow` 允許檔）。
-3. **小工單直接做**：單一模組、未命中 risk gate、預估 15 個工具呼叫內、不並行、無瀏覽器驗收的工單，由 orchestrator 自己做，不派 executor。在作者的歷史工單重播中，小工單直接做約省一半時間與 token。
-4. **分級更輕**：機械風險訊號已能定案分級時，不載入 `risk-grade` skill。
-5. **瀏覽器驗收**：交給 `opus-lite-verifier`。
+1. **`role-ui-walkthrough`**：新 skill。只看畫面的角色 agent 操作一趟旅程，產出現況表、圖文操作手冊與裁決報告。[概念、示意圖與範例](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.zh-TW.md)。
+2. **`gap-adjudication-report`**：新 skill。裁決報告的產出規範，操作測試會用到，也可以單獨使用。
+3. **待裁清單**：需要你裁決的題目連同選項與受影響的工單寫進 `pending-decisions.md`。不受影響的工單照常進行；剩下的工單全部取決於答案時，流程才停下來問。
+4. **`run_evidence.py`**：executor 的每條驗收指令都經它執行，證據檔有固定的標頭（指令原文、exit code、秒數）與完整輸出。
+5. **壓縮後提醒**：內附的 `SessionStart` hook。context 壓縮之後，載入過 `orchestrate-v2` 的 session 會重新讀取規則檔，不依摘要執行。
+6. **工單形狀**：3 張以上同形的工單共用一份共同段，每張只寫差異；SQL 參數綁定改寫以擷取實際送出的 SQL 文字與綁定參數驗收，不用攻擊字串。
+7. **Review**：新增第五個面向，檢查新增的註解是否在說明 workaround 或宣告限制；派工附審查檔案清單；標「正常使用可觸發」的 finding 要附重現指令與輸出。
+8. **風險 ledger**：機械分級已定案時由 `risk_signals.py --record` 直接記入 ledger；`risk_ledger.py outcome` 記錄修正、暫緩、否決的條數，多張工單合併 review 時用 `--merged-into`。
+9. **Baseline**：`compare` 新增 `head_moved`，列出 snapshot 之後的 commit。
+10. **`debug-by-evidence`**：新增測試變慢的診斷參考。
 
 ## 選配：用 Codex 做 reviewer 或 rescue
 

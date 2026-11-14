@@ -8,7 +8,7 @@
 
 用法：
   uv run risk_signals.py --repo DIR [--policy FILE] --files PATH...
-  uv run risk_signals.py --repo DIR [--policy FILE] --git
+  uv run risk_signals.py --repo DIR [--policy FILE] --git [--record [--source TEXT] [--ledger FILE]]
 
 policy 順序：--policy → <repo>/.claude/risk-policy.yaml → 本 skill templates/risk-policy.example.yaml。
 --git 取 working tree 相對 HEAD 的變更（含 untracked），並算 diff 統計與 formatting-only。
@@ -16,7 +16,10 @@ mechanical_layer 為 gate／safe／judgement／empty 之一；verdict 對應 hig
 high 與 low 是機械層的最終等級，judgement 交呼叫方依 rule 判定（語意類 gate、形狀類白名單、裁量）。
 policy `ignore` 清單命中的檔案（建置產物、lock 檔）不參與分類，另列於 ignored。
 --executor-failed 表示 executor 同一工單曾失敗或逾時，直接命中 executor_history gate（gate 是下限，優先於 safe）。
-exit 0＝正常輸出；exit 2＝policy 讀不到、非 git 目錄或參數錯誤。
+--record 只能與 --git 併用：verdict 為 high／low 時呼叫同目錄 risk_ledger.py record 記一筆（high＝gate 層、low＝safe 層，
+  理由由腳本填），輸出加上 ledger_id；verdict 為 judgement／none 時不記，ledger_id 為 null，由呼叫方判定後自行 record。
+  --source 是寫進 ledger 的呼叫方名稱（預設 manual）；--ledger 覆寫 ledger 路徑（預設同 risk_ledger.py）。
+exit 0＝正常輸出；exit 2＝policy 讀不到、非 git 目錄、參數錯誤或 ledger 寫入失敗（此時不輸出 JSON）。
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from pathlib import Path
 import yaml
 
 DEFAULT_POLICY = Path(__file__).resolve().parent.parent / "templates" / "risk-policy.example.yaml"
+LEDGER_SCRIPT = Path(__file__).resolve().parent / "risk_ledger.py"
 
 
 def glob_to_regex(pattern: str) -> re.Pattern:
@@ -106,8 +110,8 @@ def classify(files: list[str], policy: dict) -> dict:
     gates = policy.get("gates") or []
     safe = policy.get("safe_changes") or {}
     ignore = [glob_to_regex(p) for p in (policy.get("ignore") or [])]
-    ignored = [f.replace("\\", "/").lstrip("./") for f in files if any(r.match(f.replace("\\", "/").lstrip("./")) for r in ignore)]
-    files = [f for f in files if f.replace("\\", "/").lstrip("./") not in ignored]
+    ignored = [f.replace("\\", "/").removeprefix("./") for f in files if any(r.match(f.replace("\\", "/").removeprefix("./")) for r in ignore)]
+    files = [f for f in files if f.replace("\\", "/").removeprefix("./") not in ignored]
     compiled_gates = [
         (g["name"], [glob_to_regex(p) for p in g.get("paths", [])], [glob_to_regex(p) for p in g.get("exclude", [])])
         for g in gates
@@ -117,7 +121,7 @@ def classify(files: list[str], policy: dict) -> dict:
     gate_hits: dict[str, list[str]] = {}
     unclassified: list[str] = []
     for raw in files:
-        path = raw.replace("\\", "/").lstrip("./")
+        path = raw.replace("\\", "/").removeprefix("./")
         hit = []
         for name, pats, excl in compiled_gates:
             if any(r.match(path) for r in pats) and not any(r.match(path) for r in excl):
@@ -146,6 +150,26 @@ def classify(files: list[str], policy: dict) -> dict:
     }
 
 
+def record_verdict(out: dict, repo: Path, source: str, ledger: str | None) -> str:
+    """把機械層已定案的 high／low 記入 ledger（呼叫同目錄 risk_ledger.py record），回傳 ledger id；失敗丟 RuntimeError。"""
+    high = out["verdict"] == "high"
+    gates = sorted(out["gate_hits"])
+    cmd = [sys.executable, str(LEDGER_SCRIPT)]
+    if ledger:
+        cmd += ["--ledger", ledger]
+    cmd += [
+        "record", "--repo", str(repo), "--grade", out["verdict"], "--layer", "gate" if high else "safe",
+        "--reason", "命中 gate：" + "、".join(gates) if high else "全部 safe-change",
+        "--source", source, "--files-count", str(out["diff"]["files"]),
+    ]
+    if gates:
+        cmd += ["--gates", *gates]
+    proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or f"risk_ledger.py exit {proc.returncode}")
+    return proc.stdout.strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", default=".", help="專案根目錄，預設 cwd")
@@ -154,7 +178,12 @@ def main() -> int:
     src.add_argument("--files", nargs="+", help="變更檔案清單（相對 repo）")
     src.add_argument("--git", action="store_true", help="取 working tree 相對 HEAD 的變更（含 untracked）")
     parser.add_argument("--executor-failed", action="store_true", help="executor 同一工單曾失敗或逾時：直接命中 executor_history gate")
+    parser.add_argument("--record", action="store_true", help="verdict 為 high／low 時記入 ledger 並輸出 ledger_id；只能與 --git 併用")
+    parser.add_argument("--source", default="manual", help="--record 寫進 ledger 的呼叫方名稱")
+    parser.add_argument("--ledger", help="--record 使用的 ledger 路徑；省略時用 risk_ledger.py 的預設")
     args = parser.parse_args()
+    if args.record and not args.git:
+        parser.error("--record 只能與 --git 併用（--files 的估算不記 ledger）")
 
     repo = Path(args.repo).resolve()
     try:
@@ -196,6 +225,14 @@ def main() -> int:
             "over_attention_limit": bool(limit and changed_lines is not None and changed_lines > limit),
         }
     )
+    if args.record:
+        out["ledger_id"] = None
+        if verdict in ("high", "low"):
+            try:
+                out["ledger_id"] = record_verdict(out, repo, args.source, args.ledger)
+            except (RuntimeError, OSError) as exc:
+                print(f"ledger error: {exc}", file=sys.stderr)
+                return 2
     print(json.dumps(out, ensure_ascii=False, indent=2))
     return 0
 

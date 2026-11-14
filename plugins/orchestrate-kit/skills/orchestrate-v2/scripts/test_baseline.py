@@ -237,6 +237,97 @@ class BaselineTest(unittest.TestCase):
         self.assertIsNone(data["files"]["locked.bin"]["size"])
         self.assertIn("locked.bin", proc.stderr)
 
+    # 13. head_moved：snapshot 後 HEAD 改變（executor 自行 commit 等）
+    def commit(self, subject: str) -> str:
+        with (self.repo / "a.txt").open("a", encoding="utf-8") as fh:
+            fh.write(subject + "\n")
+        git(self.repo, "commit", "-q", "-am", subject)
+        return git(self.repo, "rev-parse", "HEAD").strip()
+
+    def short(self, rev: str) -> str:
+        return git(self.repo, "rev-parse", "--short", rev).strip()
+
+    def test_head_moved_one_commit(self) -> None:
+        old = git(self.repo, "rev-parse", "HEAD").strip()
+        self.snapshot()
+        new = self.commit("executor commit")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual(code, 1)
+        self.assertEqual(findings, [{
+            "type": "head_moved", "path": "", "in_scope": False,
+            "baseline_head": old, "current_head": new,
+            "commits": [f"{self.short(new)} t executor commit"],
+        }])
+
+    def test_head_moved_many_commits_oldest_first(self) -> None:
+        self.snapshot()
+        shas = [self.commit(s) for s in ("first", "second", "third")]
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual(code, 1)
+        self.assertEqual([f["type"] for f in findings], ["head_moved"])
+        self.assertEqual(findings[0]["commits"], [
+            f"{self.short(shas[0])} t first",
+            f"{self.short(shas[1])} t second",
+            f"{self.short(shas[2])} t third",
+        ])
+
+    def test_head_moved_commits_capped_at_20(self) -> None:
+        self.snapshot()
+        for i in range(21):
+            self.commit(f"c{i}")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual(code, 1)
+        self.assertEqual(len(findings[0]["commits"]), 20)
+
+    def test_head_moved_reset_not_ancestor(self) -> None:
+        old = git(self.repo, "rev-parse", "HEAD").strip()
+        newer = self.commit("later")
+        self.snapshot()
+        git(self.repo, "reset", "-q", "--hard", old)
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual(code, 1)
+        self.assertEqual(findings, [{
+            "type": "head_moved", "path": "", "in_scope": False,
+            "baseline_head": newer, "current_head": old,
+            "commits": [], "note": "baseline head is not an ancestor",
+        }])
+
+    def test_head_unchanged_no_finding(self) -> None:
+        self.snapshot()
+        (self.repo / "a.txt").write_text("a2\n", encoding="utf-8")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual((code, findings), (0, []))
+
+    def test_manifest_without_head_no_finding(self) -> None:
+        self.snapshot()
+        data = json.loads(self.manifest.read_text(encoding="utf-8"))
+        del data["head"]
+        self.manifest.write_text(json.dumps(data), encoding="utf-8")
+        self.commit("after old-format snapshot")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual((code, findings), (0, []))
+        data["head"] = None
+        self.manifest.write_text(json.dumps(data), encoding="utf-8")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual((code, findings), (0, []))
+
+    def test_head_moved_with_other_findings(self) -> None:
+        self.snapshot()
+        self.commit("executor commit")
+        (self.repo / "b.txt").write_text("b2\n", encoding="utf-8")
+        code, findings = self.compare("--allow", "a.txt")
+        self.assertEqual(code, 1)
+        self.assertEqual(sorted(f["type"] for f in findings), ["head_moved", "out_of_scope"])
+        self.assertEqual([f["path"] for f in findings if f["type"] == "out_of_scope"], ["b.txt"])
+
+    def test_head_moved_text_output(self) -> None:
+        self.snapshot()
+        new = self.commit("executor commit")
+        proc = run("compare", "--baseline", str(self.manifest), "--allow", "a.txt", cwd=self.repo)
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn("head_moved: ", proc.stdout)
+        self.assertIn(f"{self.short(new)} t executor commit", proc.stdout)
+
 
 HOOK = Path(__file__).with_name("baseline_hook.py")
 

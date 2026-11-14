@@ -27,7 +27,7 @@ executor 失敗了，再派一次看看。
 
 # Rule 2 - 留有 partial 修改的工單不得原封重派
 
-- Level: `SHOULD`
+- Level: `MUST`
 - 凡 executor 已留下 partial 修改（失敗、逾時或被中止），不得把原工單原封不動重派。
 - 二選一：附狀態交接後重發（已改哪些檔、哪些驗收已過、卡在哪一步、實際錯誤輸出），或用 baseline manifest 比對後還原到發派前狀態再重發。
 - 還原範圍以 `scripts/baseline.py compare` 列出的檔案為準：只還原 executor 動過的檔案，使用者在 baseline 時就存在的修改以 manifest 同名 `.patch` 為原始內容。

@@ -4,6 +4,8 @@ English | [正體中文](README.zh-TW.md)
 
 A Claude Code plugin that makes Claude work like a tech lead: diagnose the task, cut narrow work orders, dispatch Opus executor subagents, verify the result itself, grade the risk of the change, send medium/high-risk changes to an adversarial reviewer, adjudicate the findings, and close with a report.
 
+It also ships [`role-ui-walkthrough`](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.md): a usability walkthrough run by role agents that only see the screen, which uses the same flow to produce a status table, an illustrated manual and an adjudication report.
+
 ## What's inside
 
 | Component | Type | Role |
@@ -13,19 +15,23 @@ A Claude Code plugin that makes Claude work like a tech lead: diagnose the task,
 | `risk-calibrate` | skill | Compares ledger grades with what actually happened and proposes wording changes to the risk policy. Never edits the policy itself. |
 | `debug-by-evidence` | skill | Evidence before fixes. Phase 1 uses it for bug / failing-test / flaky / performance tasks. |
 | `executable-spec` | skill | Three-layer executable specifications. The flow stops and asks for one when a task needs a SPEC that does not exist yet. |
+| `role-ui-walkthrough` | skill | Usability walkthrough: one agent per role operates a local website through screenshots and coordinate clicks only, without reading the code; the lead confirms every finding against screenshots, code and existing decisions. See its [README](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.md). |
+| `gap-adjudication-report` | skill | Output rules for gap inventories and adjudication reports (HTML decision documents): UI location with boxed screenshots, evidence source labels, cross-checking, full-sweep scope, one-page index. |
 | `opus-lite-executor`, `opus-executor` | agents | Work-order executors, routed by difficulty and by risk signals (opus-lite runs at effort low, opus at effort high). They only do what the work order says and never touch git. |
 | `opus-lite-explorer` | agent | Read-only search and close reading, replacing the built-in Explore / general-purpose agents (built-in agents cannot pin effort). |
 | `opus-reviewer` | agent | Adversarial reviewer for medium/high-risk changes. Returns raw findings; the orchestrator adjudicates. |
 | `opus-lite-verifier` | agent | Browser acceptance: runs the work order's browser checks and returns screenshots and measurements as evidence. |
 | `check_evidence.py` | script (in `orchestrate-v2`) | Reads an executor's evidence directory in one call and reports per file the command, final exit code and output tail, flagging missing exit codes, non-zero final exits and acceptance items without an after-file. |
+| `run_evidence.py` | script (in `orchestrate-v2`) | Runs one acceptance command and appends the command, exit code, elapsed time and full output to the work order's evidence file, in the format `check_evidence.py` reads. |
 | baseline hook | bundled `PreToolUse` hook | Before every executor dispatch (`Agent`/`Task` tool), snapshots the working tree as the baseline; returns immediately for non-executor agents. |
+| compaction reminder hook | bundled `SessionStart` hook | After a context compaction, a session that loaded `orchestrate-v2` is told to re-read the rule files at the next step instead of working from the summary. |
 
 ## Requirements
 
 - Claude Code with plugin support, on a plan that can run Opus (the agent definitions pin model and effort).
 - [`uv`](https://docs.astral.sh/uv/) — the scripts are single-file PEP 723 scripts run with `uv run`.
 - Python 3.10+ and `git` on PATH.
-- Optional: Playwright MCP, needed only for browser acceptance (`opus-lite-verifier`).
+- Optional: Playwright MCP, needed for browser acceptance (`opus-lite-verifier`) and for `role-ui-walkthrough`.
 - Windows: set `PYTHONUTF8=1` once (`setx PYTHONUTF8 1`) so script output containing CJK text is not mangled by the CP950 console.
 
 ## Install
@@ -64,9 +70,9 @@ What happens:
 
 1. **Diagnose** — reads the task and the code, classifies assumptions; product decisions that need you are raised before any work order is cut.
 2. **Work orders** — each order has a goal, an allowed-file list, executable acceptance commands and prohibitions; a risk-signal estimate per order drives executor routing.
-3. **Dispatch** — acceptance commands are run first on the current tree to prove they can fail; a baseline snapshot is taken before every dispatch.
-4. **Verify** — baseline compare (out-of-scope files → redo) plus the orchestrator re-running every acceptance command itself. Executor reports are not evidence.
-5. **Review** — `risk-grade` decides; medium/high goes to `opus-reviewer` with a four-aspect focus text, low is self-verified.
+3. **Dispatch** — a baseline snapshot is taken before every dispatch. The executor first runs the acceptance items marked "run before the change", so the failing or baseline result is on record, then runs every item after the change; each run goes through `run_evidence.py` into an evidence file.
+4. **Verify** — baseline compare (out-of-scope files → redo), then the orchestrator reads the evidence files through `check_evidence.py` and judges each item from the command, exit code and output. Executor summaries are not evidence; items that could damage data, break authorization or affect other systems are re-run by the orchestrator.
+5. **Review** — `risk-grade` decides; medium/high goes to `opus-reviewer` with a five-aspect focus text and the list of files under review, low is self-verified.
 6. **Adjudicate** — every finding is checked against the code: real → new narrow work order, false → rejected with a reason, plausible → handed to you.
 7. **Close** — report, and the ledger outcome is written back. Nothing is committed unless you say so.
 
@@ -74,21 +80,28 @@ Standalone use:
 
 - `/orchestrate-kit:risk-grade <scope and context>` — grade a change without the full flow.
 - `/orchestrate-kit:risk-calibrate [project dir]` — once a project has roughly ten graded changes with outcomes.
-- `debug-by-evidence` and `executable-spec` are picked up automatically from their descriptions, or invoke them by name.
+- `/orchestrate-kit:role-ui-walkthrough <roles, journey, deliverables>` — the screen-only walkthrough; see its [README](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.md).
+- `debug-by-evidence`, `executable-spec` and `gap-adjudication-report` are picked up automatically from their descriptions, or invoke them by name.
 
 Where state lives:
 
 - Per-project risk policy: `.claude/risk-policy.yaml` (created from the bundled template on request; declares your sensitive paths and safe-change paths).
 - Global ledger: `~/.claude/risk-grade/ledger.jsonl`.
 - Baseline manifests: `<system temp>/claude-orchestrate/<repo hash>/`.
+- Pending decisions: `pending-decisions.md` in the parent of the task's evidence directories.
 
-## What's new in 0.3.0
+## What's new in 0.4.0
 
-1. **Automatic baseline** — the plugin's `PreToolUse` hook snapshots the working tree before each executor dispatch. If the snapshot fails, the dispatch is blocked; no other tool is affected.
-2. **One-call evidence check** — the orchestrator reads executor evidence files with `check_evidence.py` instead of opening them one by one (`--dir` evidence directory, `--expect` acceptance IDs, `--allow` allowed files).
-3. **Small orders done directly** — a work order that stays in one module, hits no risk gate, fits in about 15 tool calls, runs alone, and needs no browser acceptance is done by the orchestrator itself instead of being dispatched. In replays of the author's past work orders this saved roughly half the time and tokens.
-4. **Lighter grading** — when the mechanical risk signals already settle the grade, the `risk-grade` skill is not loaded.
-5. **Browser acceptance** — handed to `opus-lite-verifier`.
+1. **`role-ui-walkthrough`** — new skill: role agents that only see the screen walk a journey; the output is a status table, an illustrated manual and an adjudication report. [Concept, diagrams and example](plugins/orchestrate-kit/skills/role-ui-walkthrough/README.md).
+2. **`gap-adjudication-report`** — new skill: output rules for adjudication reports, used by the walkthrough and usable on its own.
+3. **Pending-decisions list** — a question that needs you is written to `pending-decisions.md` with its options and the work orders it affects. Unaffected work orders keep going; the flow stops to ask only when everything left depends on an answer.
+4. **`run_evidence.py`** — executors run each acceptance command through it, so every evidence file has the same header (command, exit code, elapsed time) and the full output.
+5. **Compaction reminder** — a bundled `SessionStart` hook: after compaction, a session that loaded `orchestrate-v2` re-reads the rule files instead of relying on the summary.
+6. **Work-order shapes** — three or more same-shape orders share one common-section file and each order lists only its differences; SQL parameter-binding rewrites are verified by capturing the SQL text and bound values, not by attack strings.
+7. **Review** — a fifth aspect covers newly added comments that explain a workaround or declare a constraint; the dispatch carries the list of files under review; a finding marked "triggerable in normal use" must come with the reproduction command and its output.
+8. **Risk ledger** — `risk_signals.py --record` writes the ledger entry when the mechanical verdict is final; `risk_ledger.py outcome` records fixed / deferred / rejected counts, and `--merged-into` for work orders reviewed together.
+9. **Baseline** — `compare` reports `head_moved` with the commits made after the snapshot.
+10. **`debug-by-evidence`** — adds a reference for diagnosing slow test suites.
 
 ## Optional: Codex as reviewer or rescue
 
