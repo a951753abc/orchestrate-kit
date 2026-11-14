@@ -21,33 +21,33 @@ An agent that has never read the code stands in for a person who has never seen 
 ```mermaid
 flowchart TB
     subgraph PREPARE["Lead: prepare"]
-        PREP["Prepare browser and briefs<br/>isolated context,<br/>paid calls intercepted,<br/>signed-in state loaded"]
+        PREP["Prepare browser<br/>and briefs"]
     end
 
     subgraph ROLE["Role agent: screen only"]
-        BRIEF["Brief<br/>who the role is,<br/>data in hand,<br/>what a tester would know"]
-        ACT["Coordinate clicks,<br/>keyboard input<br/>two screenshots per step"]
-        LOG["Step log and report<br/>expected, actual,<br/>match or not"]
+        BRIEF["Brief<br/>only what the<br/>role knows"]
+        ACT["Coordinate clicks,<br/>keyboard,<br/>screenshots"]
+        LOG["Step log<br/>and report"]
         BRIEF --> ACT --> LOG
     end
 
     SITE[("Local website")]
 
     subgraph CHECK["Checking agent: read-only"]
-        CODE["Code basis<br/>file, line, quoted text"]
-        RULING["Existing decisions,<br/>specs, known limits"]
+        CODE["Code basis<br/>file and line"]
+        RULING["Decisions<br/>and specs"]
     end
 
     subgraph VERIFY["Lead: check"]
-        AUDIT["Audit tool calls<br/>drop steps that<br/>broke the limits"]
-        NOTES["Lead notes<br/>open screenshots,<br/>classify, state limits"]
+        AUDIT["Audit<br/>tool calls"]
+        NOTES["Lead notes<br/>confirmed with<br/>screenshots"]
         AUDIT --> NOTES
     end
 
     OUT["Status table<br/>Illustrated manual<br/>Adjudication report"]
 
     PREP -- "brief says nothing<br/>about the screen" --> BRIEF
-    ACT -- "coordinate clicks,<br/>screenshots back" --> SITE
+    ACT -- "clicks out,<br/>screenshots back" --> SITE
     LOG -- "leads, not evidence" --> AUDIT
     CODE --> NOTES
     RULING --> NOTES
@@ -64,16 +64,16 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-    P1["Phase 1<br/>Scope and segments<br/>roles, journey, trial run"]
-    P2["Phase 2<br/>Browser and briefs<br/>isolation, interception,<br/>signed-in state"]
-    P3["Phase 3<br/>Role agents operate<br/>one agent at a time"]
+    P1["Phase 1<br/>Scope and<br/>segments"]
+    P2["Phase 2<br/>Browser<br/>and briefs"]
+    P3["Phase 3<br/>Role agents<br/>operate"]
     AUD["Audit tool calls<br/>audit_agent_tools.py"]
-    MORE{"Segments left?"}
-    P4["Phase 4<br/>Lead notes after checking<br/>screenshots, decisions,<br/>code basis"]
+    MORE{"Segments<br/>left?"}
+    P4["Phase 4<br/>Check, then<br/>lead notes"]
     P5["Phase 5<br/>Deliverables"]
-    O1["Status table<br/>state of every step"]
-    O2["Illustrated manual<br/>one screenshot per step"]
-    O3["Adjudication report<br/>items, evidence, order"]
+    O1["Status table"]
+    O2["Illustrated<br/>manual"]
+    O3["Adjudication<br/>report"]
 
     P1 --> P2 --> P3 --> AUD --> MORE
     MORE -- "yes" --> P2

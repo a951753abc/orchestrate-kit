@@ -21,26 +21,26 @@
 ```mermaid
 flowchart TB
     subgraph PREPARE["主控：準備"]
-        PREP["備妥瀏覽器與任務說明<br/>隔離 context、攔截<br/>載入登入狀態"]
+        PREP["備妥瀏覽器<br/>與任務說明"]
     end
 
     subgraph ROLE["角色 agent：只看畫面"]
-        BRIEF["任務說明<br/>角色是誰、手上的資料<br/>測試者本來就知道的流程"]
-        ACT["座標點擊、鍵盤輸入<br/>每一步存兩張截圖"]
-        LOG["逐步紀錄與回報<br/>預期、實際、相符或不符"]
+        BRIEF["任務說明<br/>只寫角色<br/>知道的事"]
+        ACT["只用座標點擊<br/>鍵盤與截圖"]
+        LOG["逐步紀錄<br/>與回報"]
         BRIEF --> ACT --> LOG
     end
 
     SITE[("本機網站")]
 
     subgraph CHECK["查證 agent：唯讀"]
-        CODE["程式依據<br/>檔案、行號、原文"]
-        RULING["既有裁定、規格<br/>已知限制"]
+        CODE["程式依據<br/>檔案與行號"]
+        RULING["既有裁定<br/>與規格"]
     end
 
     subgraph VERIFY["主控：查證"]
-        AUDIT["稽核工具呼叫<br/>違反限制的步驟<br/>從素材排除"]
-        NOTES["主控筆記<br/>開截圖確認、分類<br/>判讀限制"]
+        AUDIT["稽核<br/>工具呼叫"]
+        NOTES["主控筆記<br/>開截圖確認"]
         AUDIT --> NOTES
     end
 
@@ -64,16 +64,16 @@ flowchart TB
 
 ```mermaid
 flowchart TD
-    P1["Phase 1<br/>定出範圍與分段<br/>角色、旅程、段落、試跑段"]
-    P2["Phase 2<br/>備妥瀏覽器與任務說明<br/>隔離、攔截、登入狀態"]
-    P3["Phase 3<br/>角色 agent 完成操作<br/>一次只有一個 agent"]
+    P1["Phase 1<br/>定出範圍<br/>與分段"]
+    P2["Phase 2<br/>備妥瀏覽器<br/>與任務說明"]
+    P3["Phase 3<br/>角色 agent<br/>完成操作"]
     AUD["稽核工具呼叫<br/>audit_agent_tools.py"]
-    MORE{"還有段落沒操作？"}
-    P4["Phase 4<br/>查證後的主控筆記<br/>開截圖、對照裁定、查程式"]
+    MORE{"還有段落<br/>沒操作？"}
+    P4["Phase 4<br/>查證後寫<br/>主控筆記"]
     P5["Phase 5<br/>交付產出"]
-    O1["現況表<br/>每個旅程步驟的狀態"]
-    O2["圖文操作手冊<br/>一步一張截圖"]
-    O3["裁決報告<br/>待裁項目、證據、順序"]
+    O1["現況表"]
+    O2["圖文操作手冊"]
+    O3["裁決報告"]
 
     P1 --> P2 --> P3 --> AUD --> MORE
     MORE -- "有" --> P2
